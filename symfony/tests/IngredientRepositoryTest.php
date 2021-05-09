@@ -2,6 +2,7 @@
 
 namespace App\Tests\Repository;
 
+use App\Constants;
 use App\Entity\TIngredient;
 use App\Entity\TIngredientType;
 use App\Entity\TUnits;
@@ -69,6 +70,94 @@ class IngredientRepositoryTest extends KernelTestCase
         $arResult = self::$obIngredientRepository->getVisibleForUser(self::$obRegularUser);
 
         $this->assertInstanceOf(TIngredient::class, $arResult[0]);
+    }
+
+    /**
+     * @return void
+     */
+    public function testGetVisibleForUserFilterAccess(): void
+    {
+
+        $arPassedStatuses = array_fill_keys(array_keys(IngredientRepository::ACCESS_STATUS), false);
+
+        foreach (IngredientRepository::ACCESS_STATUS as $strAccessCode => $strAccessName) {
+            $arResult = self::$obIngredientRepository->getVisibleForUser(self::$obRegularUser, [
+                'access' => [
+                    $strAccessCode
+                ]
+            ]);
+
+            $arTmpStatuses = array_fill_keys(array_keys(IngredientRepository::ACCESS_STATUS), false);
+
+            foreach ($arResult as $obIngredient) {
+                $arTmpStatuses[$obIngredient->getAccess()] = true;
+            }
+            $arPassedStatuses[$strAccessCode] = count(array_filter($arTmpStatuses)) <= 1;
+        }
+
+        $this->assertNotContains(false, $arPassedStatuses, print_r($arPassedStatuses, true));
+    }
+
+    /**
+     * @return void
+     */
+    public function testGetVisibleForUserFilterType(): void
+    {
+        $arResult = self::$obIngredientRepository->getVisibleForUser(
+            self::$obRegularUser,
+            ['type' => Constants::DEFAULT_TYPE]
+        );
+
+        $arFoundTypes = [];
+
+        foreach ($arResult as $obIngredient) {
+            $arFoundTypes[$obIngredient->getType()->getId()] = true;
+        }
+
+        $this->assertSame(1, count($arFoundTypes));
+    }
+
+    /**
+     * @return void
+     */
+    public function testGetVisibleForUserFilterTypeAccess(): void
+    {
+
+        $arResult = self::$obIngredientRepository->getVisibleForUser(self::$obRegularUser);
+
+        $obTestIngredient = $arResult[0];
+
+        $arResult = self::$obIngredientRepository->getVisibleForUser(
+            self::$obRegularUser,
+            [
+                'type'   => $obTestIngredient->getType(),
+                'access' => $obTestIngredient->getAccess()
+            ]
+        );
+
+        $arFoundTypes  = [];
+        $arFoundAccess = [];
+
+        foreach ($arResult as $obIngredient) {
+            $arFoundTypes[$obIngredient->getType()->getId()] = true;
+            $arFoundAccess[$obIngredient->getAccess()]       = true;
+        }
+
+        $this->assertSame(1, count($arFoundTypes));
+        $this->assertSame(1, count($arFoundAccess));
+    }
+
+    /**
+     * @return void
+     */
+    public function testGetVisibleForUserFilterTypeEmpty(): void
+    {
+        $arResult = self::$obIngredientRepository->getVisibleForUser(
+            self::$obRegularUser,
+            ['type' => 99999999]
+        );
+
+        $this->assertSame(0, count($arResult));
     }
 
     /**

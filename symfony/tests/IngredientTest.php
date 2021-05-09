@@ -2,6 +2,7 @@
 
 namespace App\Tests\Controller;
 
+use App\Constants;
 use App\Entity\TIngredient;
 use App\Entity\TIngredientType;
 use App\Entity\TUnits;
@@ -35,6 +36,10 @@ class IngredientTest extends WebTestCase
     private static ?TUsers $obAdminUser;
     private static ?TUsers $obRegularUser;
 
+    private static ?TIngredientType $obType;
+    private static ?TIngredientType $obType2;
+    private static ?TUnits          $obUnit;
+
     private KernelBrowser $client;
 
     /**
@@ -59,12 +64,13 @@ class IngredientTest extends WebTestCase
         self::$obAdminUser   = self::$obUserRepository->findOneByRole('%ROLE_ADMIN%');
         self::$obRegularUser = self::$obUserRepository->findOneByRole('ROLE_USER');
 
-        $obType                  = self::$obTypeRepository->findAll()[0];
-        $obUnit                  = self::$obUnitRepository->findAll()[0];
+        static::$obType          = self::$obTypeRepository->findAll()[0];
+        static::$obType2         = self::$obTypeRepository->findAll()[1];
+        static::$obUnit          = self::$obUnitRepository->findAll()[0];
         self::$arValidIngredient = [
             'name'    => Helpers::getRandString(),
-            'units'   => $obUnit->getId(),
-            'type'    => $obType->getId(),
+            'units'   => static::$obUnit->getId(),
+            'type'    => static::$obType->getId(),
             'minimum' => 1
         ];
 
@@ -95,9 +101,9 @@ class IngredientTest extends WebTestCase
      */
     public function testIngredientList(): void
     {
-        $this->client->request('GET', '/app/ingredients');
+        $this->client->request('POST', '/app/ingredients');
         $obResponse = $this->client->getResponse();
-        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertSame(200, $obResponse->getStatusCode(), $obResponse->getContent());
         $this->assertJson($obResponse->getContent());
         $arResponseData = json_decode($obResponse->getContent(), true);
 
@@ -120,7 +126,56 @@ class IngredientTest extends WebTestCase
         $arResponseData = json_decode($strContent, true);
 
         $this->assertArrayHasKey('status', $arResponseData);
+        $this->assertArrayHasKey('item', $arResponseData);
         $this->assertSame(true, $arResponseData['status']);
+    }
+
+    /**
+     * @return void
+     * @depends testIngredientPut
+     */
+    public function testIngredientDelete(): void
+    {
+        $this->client->request('POST', '/app/ingredients/add', self::$arValidIngredient);
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $strContent = $obResponse->getContent();
+        $this->assertJson($strContent);
+        $arResponseData = json_decode($strContent, true);
+
+        $this->assertArrayHasKey('status', $arResponseData);
+        $this->assertArrayHasKey('item', $arResponseData);
+        $this->assertSame(true, $arResponseData['status']);
+
+        $intTestItemID = $arResponseData['item']['id'];
+
+        $this->client->request('POST', '/app/ingredients/delete', [
+            'id' => $intTestItemID
+        ]);
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $strContent = $obResponse->getContent();
+        $this->assertJson($strContent);
+        $arResponseData = json_decode($strContent, true);
+
+        $this->assertArrayHasKey('status', $arResponseData);
+        $this->assertSame(true, $arResponseData['status']);
+
+        $this->client->request('POST', '/app/ingredients/delete', [
+            'id' => $intTestItemID
+        ]);
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $strContent = $obResponse->getContent();
+        $this->assertJson($strContent);
+        $arResponseData = json_decode($strContent, true);
+
+        $this->assertArrayHasKey('status', $arResponseData);
+        $this->assertSame(false, $arResponseData['status']);
+        $this->assertSame(ExceptionFactory::NO_ACCESS_EDIT['code'], $arResponseData['code']);
     }
 
     /**
@@ -152,16 +207,67 @@ class IngredientTest extends WebTestCase
      * @return void
      * @depends testIngredientPut
      */
+    public function testIngredientPrivate(): void
+    {
+        $this->client->request('POST', '/app/ingredients/add', self::$arValidIngredient);
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+        $this->assertArrayHasKey('status', $arResponseData);
+        $this->assertArrayHasKey('item', $arResponseData);
+        $this->assertSame(true, $arResponseData['status']);
+
+        $intTestId = $arResponseData['item']['id'];
+
+        $this->client->request(
+            'POST',
+            '/app/ingredients',
+            [
+                'access' => 'P'
+            ]
+        );
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+
+        $boolFoundTestId = [];
+        $arFoundAccess   = [];
+
+        foreach ($arResponseData as $arIngredient) {
+            $boolFoundTestId                        = $boolFoundTestId || $arIngredient['id'] == $intTestId;
+            $arFoundAccess[$arIngredient['access']] = true;
+        }
+
+        $this->assertSame(true, $boolFoundTestId);
+        $this->assertSame(1, count($arFoundAccess), print_r($arFoundAccess, true));
+    }
+
+    /**
+     * @return void
+     * @depends testIngredientPrivate
+     */
     public function testIngredientPublish(): void
     {
 
-        $obExistsIngredient = self::$obIngredientRepository->findMyUnmoderated(self::$obRegularUser)[0];
+        $this->client->request('POST', '/app/ingredients/add', self::$arValidIngredient);
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+        $this->assertArrayHasKey('status', $arResponseData);
+        $this->assertArrayHasKey('item', $arResponseData);
+        $this->assertSame(true, $arResponseData['status']);
+
+        $intTestId = $arResponseData['item']['id'];
 
         $this->client->request(
             'POST',
             '/app/ingredients/publish',
             [
-                'id' => $obExistsIngredient->getId()
+                'id' => $intTestId
             ]
         );
 
@@ -171,7 +277,125 @@ class IngredientTest extends WebTestCase
         $arResponseData = json_decode($obResponse->getContent(), true);
         $this->assertArrayHasKey('status', $arResponseData);
         $this->assertSame(true, $arResponseData['status']);
+
+        $this->client->request(
+            'POST',
+            '/app/ingredients',
+            [
+                'access' => 'M'
+            ]
+        );
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+
+        $boolFoundTestId = [];
+        $arFoundAccess   = [];
+
+        foreach ($arResponseData as $arIngredient) {
+            $boolFoundTestId                        = $boolFoundTestId || $arIngredient['id'] == $intTestId;
+            $arFoundAccess[$arIngredient['access']] = true;
+        }
+
+        $this->assertSame(true, $boolFoundTestId);
+        $this->assertSame(1, count($arFoundAccess), print_r($arFoundAccess, true));
     }
+
+    /**
+     * @return void
+     */
+    public function testIngredientAllIngredients(): void
+    {
+
+        $this->client->request(
+            'POST',
+            '/app/ingredients',
+            [
+                'access' => 'O'
+            ]
+        );
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+
+        $arFoundAccess = [];
+
+        foreach ($arResponseData as $arIngredient) {
+            $arFoundAccess[$arIngredient['access']] = true;
+        }
+
+        $this->assertSame(1, count($arFoundAccess), print_r($arFoundAccess, true));
+    }
+
+    /**
+     * @return void
+     */
+    public function testIngredientType(): void
+    {
+
+        $this->client->request(
+            'POST',
+            '/app/ingredients',
+            [
+                'type' => Constants::DEFAULT_TYPE
+            ]
+        );
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+
+        $arFoundType = [];
+
+        foreach ($arResponseData as $arIngredient) {
+            $arFoundType[$arIngredient['type']['id']] = true;
+        }
+
+        $this->assertSame(1, count($arFoundType), print_r($arFoundType, true));
+    }
+
+    /**
+     * @return void
+     */
+    public function testIngredientTypeTwoo(): void
+    {
+
+        $arCheckTypes = array_unique(
+            [
+                static::$obType->getId(),
+                static::$obType2->getId()
+            ]
+        );
+
+        $this->client->request(
+            'POST',
+            '/app/ingredients',
+            [
+                'type' => $arCheckTypes
+            ]
+        );
+
+        $obResponse = $this->client->getResponse();
+        $this->assertSame(200, $obResponse->getStatusCode());
+        $this->assertJson($obResponse->getContent());
+        $arResponseData = json_decode($obResponse->getContent(), true);
+
+        $arFoundType = [];
+
+        foreach ($arResponseData as $arIngredient) {
+            $arFoundType[$arIngredient['type']['id']] = true;
+        }
+
+        $this->assertSame(2, count($arFoundType), print_r($arFoundType, true));
+        $this->assertContains(static::$obType->getId(), array_keys($arFoundType));
+        $this->assertContains(static::$obType2->getId(), array_keys($arFoundType));
+    }
+
 
     /**
      * @return void

@@ -10,6 +10,7 @@ use App\Exceptions\FieldValidateException;
 use App\Repository\General\AccessProvider;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -39,6 +40,30 @@ class IngredientRepository extends AccessProvider
         static::$obUnitRepository           = new UnitRepository($obRegistry);
         static::$obUserRepository           = new UserRepository($obRegistry);
         static::$obIngredientTypeRepository = new IngredientTypeRepository($obRegistry);
+    }
+
+    /**
+     * @param QueryBuilder $obBuilder
+     * @param TUsers       $obUser
+     * @param array        $arParams
+     * @return QueryBuilder
+     */
+    protected function buildFilterLocal(QueryBuilder $obBuilder, TUsers $obUser, array $arParams = []): QueryBuilder
+    {
+        if (array_key_exists('type', $arParams)) {
+            if (!is_array($arParams['type'])) {
+                $arParams['type'] = [$arParams['type']];
+            }
+
+            $arParams['type'] = array_filter($arParams['type']);
+
+            if (count($arParams['type'])) {
+                $obBuilder->andWhere('t.type IN (:types)')
+                    ->setParameter('types', $arParams['type']);
+            }
+        }
+
+        return $obBuilder;
     }
 
     /**

@@ -4,16 +4,25 @@ namespace App\Repository\General;
 
 use App\Entity\TUsers;
 use App\Exceptions\ExceptionFactory;
+use App\Repository\IngredientRepository;
 use App\Repository\UserRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\NonUniqueResultException;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 use Exception;
 use Symfony\Component\Security\Core\User\UserInterface;
 
-class AccessProvider extends ServiceEntityRepository
+abstract class AccessProvider extends ServiceEntityRepository
 {
     protected static UserRepository $obUserRepository;
+
+    public const ACCESS_STATUS
+        = [
+            'O' => 'Опубликован',
+            'M' => 'Ожидает модерации',
+            'P' => 'Закрытый'
+        ];
 
     /**
      * AccessProvider constructor.
@@ -86,6 +95,8 @@ class AccessProvider extends ServiceEntityRepository
             } else {
                 ExceptionFactory::getException(ExceptionFactory::NO_ACCESS_EDIT);
             }
+        } else {
+            ExceptionFactory::getException(ExceptionFactory::NO_ACCESS_EDIT);
         }
 
         return true;
@@ -114,17 +125,58 @@ class AccessProvider extends ServiceEntityRepository
 
     /**
      * @param TUsers|UserInterface $obUser
+     * @param array                $arParams
      * @return object[] Returns an array of objects
      */
-    public function getVisibleForUser(TUsers $obUser): array
+    public function getVisibleForUser(TUsers $obUser, array $arParams = []): array
     {
-        return $this->createQueryBuilder('t')
-            ->andWhere('t.author = :user OR t.access IN (:access)')
-            ->setParameter('user', $obUser->getId())
-            ->setParameter('access', $obUser->getAccessViews())
+        return static::buildFilterBase($this->createQueryBuilder('t'), $obUser, $arParams)
             ->orderBy('t.name', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * @param QueryBuilder $obBuilder
+     * @param TUsers       $obUser
+     * @param array        $arParams
+     * @return QueryBuilder
+     * @noinspection PhpUnusedParameterInspection
+     */
+    protected function buildFilterLocal(QueryBuilder $obBuilder, TUsers $obUser, array $arParams = []): QueryBuilder
+    {
+        return $obBuilder;
+    }
+
+    /**
+     * @param QueryBuilder $obBuilder
+     * @param TUsers       $obUser
+     * @param array        $arParams
+     * @return QueryBuilder
+     */
+    protected function buildFilterBase(QueryBuilder $obBuilder, TUsers $obUser, array $arParams = []): QueryBuilder
+    {
+        $obBuilder->andWhere('t.author = :user OR t.access IN (:access)')
+            ->setParameter('user', $obUser->getId())
+            ->setParameter('access', $obUser->getAccessViews());
+
+        if (array_key_exists('access', $arParams)) {
+            if (!is_array($arParams['access'])) {
+                $arParams['access'] = [$arParams['access']];
+            }
+            $arParams['access'] = array_filter($arParams['access']);
+
+            if (count($arParams['access'])) {
+                $arParams['access'] = array_intersect(
+                    $arParams['access'],
+                    array_keys(IngredientRepository::ACCESS_STATUS)
+                );
+                $obBuilder->andWhere('t.access IN (:accessF)')
+                    ->setParameter('accessF', $arParams['access']);
+            }
+        }
+
+        return $this->buildFilterLocal($obBuilder, $obUser, $arParams);
     }
 
     /**

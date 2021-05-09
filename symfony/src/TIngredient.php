@@ -2,12 +2,12 @@
 
 namespace App\Entity;
 
-use App\Controller\Ingredients;
+use App\Entity\General\Accessible;
+use App\Entity\General\FieldValidator;
+use App\Entity\Traits\NameTrait;
 use App\Exceptions\ExceptionFactory;
 use App\Exceptions\FieldValidateException;
-use App\Repository\Traits\AccessRestrictorTrait;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * TIngredient
@@ -16,25 +16,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * @ORM\Index(name="t_ingredient_t_unuts_ID_fk", columns={"UNITS"})})
  * @ORM\Entity(repositoryClass="App\Repository\IngredientRepository")
  */
-class TIngredient extends BaseEntity
+class TIngredient extends Accessible
 {
-    use AccessRestrictorTrait;
-
-    /**
-     * @var int
-     *
-     * @ORM\Column(name="ID", type="integer", nullable=false)
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="IDENTITY")
-     */
-    private int $id;
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="NAME", type="string", length=250, nullable=false)
-     */
-    private string $name;
+    use NameTrait;
 
     /**
      * @var TUnits
@@ -56,71 +40,6 @@ class TIngredient extends BaseEntity
      * @ORM\Column(name="MINIMUM", type="integer", nullable=false)
      */
     private int $minimum;
-
-    /**
-     * @var string
-     *
-     * @ORM\Column(name="ACCESS", type="string", nullable=true)
-     */
-    private string $access;
-
-    /**
-     * @var TUsers $author
-     *
-     * @ORM\ManyToOne(targetEntity="App\Entity\TUsers")
-     * @ORM\JoinColumn(name="AUTHOR", referencedColumnName="ID")
-     */
-    private TUsers $author;
-
-    /**
-     * @var string
-     */
-    private string $editLink = 'javascript:void(0);';
-
-    /**
-     * @return int|null
-     */
-    public function getId(): ?int
-    {
-        return $this->id;
-    }
-
-    /**
-     * @param int $intId
-     * @return null
-     */
-    public function setId(int $intId)
-    {
-        return $this->id = $intId;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getName(): ?string
-    {
-        return $this->name;
-    }
-
-    /**
-     * @param string $strNewName
-     * @return $this
-     * @throws FieldValidateException|\Exception|\Exception
-     */
-    public function setName(string $strNewName): self
-    {
-        if (!($strNewName = trim($strNewName))) {
-            ExceptionFactory::getException(ExceptionFactory::INGREDIENT_NAME_EMPTY, FieldValidateException::class);
-        }
-
-        if (strlen($strNewName) < 3) {
-            ExceptionFactory::getException(ExceptionFactory::INGREDIENT_NAME_SHORT, FieldValidateException::class);
-        }
-
-        $this->name = $strNewName;
-
-        return $this;
-    }
 
     /**
      * @return TUnits
@@ -187,65 +106,10 @@ class TIngredient extends BaseEntity
      */
     public function setMinimum(int $minimum): self
     {
-        if ($minimum < 1) {
-            ExceptionFactory::getException(ExceptionFactory::INGREDIENT_MINIMUM, FieldValidateException::class);
-        }
+        FieldValidator::v($minimum)->validateRange(0.5);
 
         $this->minimum = $minimum;
 
         return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getAccess(): string
-    {
-        return $this->access;
-    }
-
-    /**
-     * @param string $access
-     * @return $this
-     */
-    public function setAccess(string $access): self
-    {
-        $this->access = $access;
-
-        return $this;
-    }
-
-    /**
-     * @return TUsers
-     */
-    public function getAuthor(): ?TUsers
-    {
-        return $this->author;
-    }
-
-    /**
-     * @param TUsers|UserInterface $obUser
-     * @return self
-     */
-    public function setAuthor(TUsers $obUser): self
-    {
-        $this->author = $obUser;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getEditLink(): string
-    {
-        return Ingredients::EDIT_LINK . '?id=' . $this->getId();
-    }
-
-    /**
-     * @return string
-     */
-    public function getDeleteLink(): string
-    {
-        return Ingredients::DELETE_LINK . '?id=' . $this->getId();
     }
 }
