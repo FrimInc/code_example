@@ -39,16 +39,14 @@ class IngredientRepositoryTest extends KernelTestCase
     {
         $obKernel = self::bootKernel();
 
-        if (!self::$entityManager) {
-            self::$entityManager = $obKernel->getContainer()
-                ->get('doctrine')
-                ->getManager();
+        self::$entityManager = $obKernel->getContainer()
+            ->get('doctrine')
+            ->getManager();
 
-            self::$obIngredientRepository = self::$entityManager->getRepository(TIngredient::class);
-            self::$obUnitRepository       = self::$entityManager->getRepository(TUnits::class);
-            self::$obUserRepository       = self::$entityManager->getRepository(TUsers::class);
-            self::$obTypeRepository       = self::$entityManager->getRepository(TIngredientType::class);
-        }
+        self::$obIngredientRepository = self::$entityManager->getRepository(TIngredient::class);
+        self::$obUnitRepository       = self::$entityManager->getRepository(TUnits::class);
+        self::$obUserRepository       = self::$entityManager->getRepository(TUsers::class);
+        self::$obTypeRepository       = self::$entityManager->getRepository(TIngredientType::class);
 
         self::$obAdminUser   = self::$obUserRepository->findOneByRole('%ROLE_ADMIN%');
         self::$obRegularUser = self::$obUserRepository->findOneByRole('ROLE_USER');
