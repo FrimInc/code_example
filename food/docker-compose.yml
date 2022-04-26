@@ -1,0 +1,156 @@
+version: '3.7'
+services:
+    web:
+        image: nginx:1.16.1-alpine
+        volumes:
+            - ./docker/conf/nginx/default.conf:/etc/nginx/conf.d/default.conf
+            - ./public:/var/www/public
+            - ./var/log/nginx:/var/log/nginx
+        ports:
+            - "85:85"
+        restart: unless-stopped
+        depends_on:
+            - app
+            - db
+        links:
+            - app
+        networks:
+            - net_food
+
+    app:
+        build:
+            args:
+                user: frim
+                uid: 1000
+            context: ./
+            dockerfile: docker/conf/php_${APP_ENV}/Dockerfile
+        restart: unless-stopped
+        working_dir: /var/www/
+        tty: true
+        volumes:
+            - .:/var/www
+            - vendor:/var/www/vendor
+            - node_modules:/var/www/node_modules
+            - ./docker/conf/php_${APP_ENV}/php.ini:/usr/local/etc/php/conf.d/z-rewr.ini
+            - ./docker/conf/php_${APP_ENV}/xdebug.ini:/usr/local/etc/php/conf.d/90-xdebug.ini
+            - ./docker/conf/php_${APP_ENV}/overrides.conf:/usr/local/etc/php-fpm.d/zzz-phpSettings.conf
+        tmpfs:
+            - /var/www/var/cache
+        links:
+            - db
+            - logstash
+        networks:
+            - net_food
+        environment:
+            COMPOSER_MEMORY_LIMIT: 2G
+            XDEBUG_CONFIG: client_host=${XDEBUG_REMOTE_HOST} client_port=${XDEBUG_STORM_PORT} remote_enable=${XDEBUG_USE}
+            PHP_IDE_CONFIG: serverName=${XDEBUG_STORM_SERVER_NAME}
+            HTTPS: ${HTTPS}
+
+    db:
+        image: postgres:12.7
+        restart: unless-stopped
+        environment:
+            - POSTGRES_DB=${POSTGRES_DB}
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+        ports:
+            - "5432:5432"
+        tty: true
+        volumes:
+            - pg_db_data:/var/lib/postgresql/data:cached
+        networks:
+            - net_food
+
+    yarn:
+        image: node:16.5.0
+        restart: "no"
+        volumes:
+            - .:/var/www:cached
+            - vendor:/var/www/vendor
+            - node_modules:/var/www/node_modules
+        working_dir: /var/www
+        command: sh -c "chown -R node:node vendor && chown -R node:node node_modules && yarn install --force && yarn encore $YARN_DO"
+
+    composer:
+        image: jitesoft/composer:7.4
+        restart: "no"
+        volumes:
+            - .:/var/www
+            - vendor:/var/www/vendor
+            - node_modules:/var/www/node_modules
+        working_dir: /var/www
+        tty: true
+        command: sh -c "composer update && composer dump-autoload -o && composer dump-env"
+
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.12.1
+        restart: unless-stopped
+        ports:
+            - 9200:9200
+        environment:
+            - ES_JAVA_OPTS=-Xms512m -Xmx512m
+            - ELASTIC_USERNAME=${ELASTIC_USERNAME}
+            - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+        volumes:
+            - ./docker/conf/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+            - elasticdata:/usr/share/elasticsearch/data
+        networks:
+            - net_food
+
+    logstash:
+        image: logstash:7.12.1
+        restart: unless-stopped
+        command: logstash -f /config-dir/logstash.conf
+        ports:
+            - 5044:5044
+            - 5045:5045
+            - 9600:9700
+        volumes:
+            - ./docker/conf/logstash/logstash.conf:/config-dir/logstash.conf
+            - ./docker/conf/logstash/templates:/config-dir/templates
+            - ./var/log/nginx:/var/log/nginx
+        links:
+            - elasticsearch
+        tty: true
+        environment:
+            - ELASTIC_USERNAME=${ELASTIC_USERNAME}
+            - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+        networks:
+            - net_food
+
+    kibana:
+        image: docker.elastic.co/kibana/kibana:7.12.1
+        volumes:
+            - ./docker/conf/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+        restart: unless-stopped
+        ports:
+            - 5602:5601
+        links:
+            - elasticsearch
+        environment:
+            - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
+            - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+        networks:
+            - net_food
+
+    redis:
+        image: redis:6.2.5
+        volumes:
+            - ./docker/conf/redis:/usr/local/etc/redis
+            - redisdata:/data:delegated
+        ports:
+            - "6379:6379"
+        command: redis-server /usr/local/etc/redis/redis.conf
+        networks:
+            - net_food
+
+volumes:
+    elasticdata:
+    pg_db_data:
+    vendor:
+    node_modules:
+    redisdata:
+networks:
+    net_food:
+        driver: bridge

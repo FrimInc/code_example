@@ -1,0 +1,34 @@
+body {
+    background-color: lightgray;
+}
+
+@media all and (min-width: 992px) {
+    .navbar .nav-item .dropdown-menu {
+        display: none;
+    }
+
+    .navbar .nav-item:hover .dropdown-menu {
+        display: block;
+    }
+
+    .navbar .nav-item .dropdown-menu {
+        margin-top: 0;
+    }
+}
+
+.units-append {
+    width: 80px;
+}
+
+.error-handler {
+    position: fixed !important;
+    bottom: 30px;
+    right: 0;
+    width: 300px;
+    min-height: 40px;
+    z-index: 1000;
+}
+
+.i-button {
+    cursor: pointer;
+}
