@@ -1,0 +1,44 @@
+version: '3.9'
+
+services:
+
+  nginx:
+    image: nginx:1.16.1-alpine
+    restart: "unless-stopped"
+    ports:
+      - "99:80"
+    volumes:
+      - ./backend:/var/www
+      - ./.docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+    links:
+      - php-fpm
+
+  php-fpm:
+    build:
+      context: "./.docker/.images/php-fpm/${ENV}/"
+      dockerfile: Dockerfile
+    tmpfs:
+        - /var/www/release/cache
+    volumes:
+      - ./backend:/var/www
+      - "${IMAGE_PATH}:/images"
+    environment:
+      PHP_IDE_CONFIG: serverName=memes
+
+  php-cron:
+    build:
+      context: "./"
+      dockerfile: ./.docker/.images/cron/Dockerfile
+    volumes:
+      - ./backend:/var/www
+      - ./cronjobs:/etc/cron.d/cronjobs
+      - "${IMAGE_PATH}:/images"
+
+  krakend:
+    image: devopsfaith/krakend:1.4.1
+    ports:
+      - "86:80"
+    volumes:
+      - ./krakend.json:/etc/krakend/krakend.json
+    links:
+      - nginx

@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "timeout": "3000ms",
+  "cache_ttl": "300s",
+  "name": "fri-m",
+  "port": 80,
+  "endpoints": [
+    {
+      "endpoint": "/picsas/index.php",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "extra_config": {},
+      "headers_to_pass": [
+        "*"
+      ],
+      "querystring_params": [
+        "*"
+      ],
+      "backend": [
+        {
+          "url_pattern": "/picture/add/",
+          "encoding": "no-op",
+          "host": [
+            "http://nginx:80"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "/memes/picture/add/",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "extra_config": {},
+      "headers_to_pass": [
+        "*"
+      ],
+      "querystring_params": [
+        "*"
+      ],
+      "backend": [
+        {
+          "url_pattern": "/picture/add/",
+          "encoding": "no-op",
+          "host": [
+            "http://nginx:80"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "/memes/picture/post/",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "extra_config": {},
+      "headers_to_pass": [
+        "*"
+      ],
+      "querystring_params": [
+        "*"
+      ],
+      "backend": [
+        {
+          "url_pattern": "/picture/post/",
+          "encoding": "no-op",
+          "host": [
+            "http://nginx:80"
+          ]
+        }
+      ]
+    }
+  ]
+}

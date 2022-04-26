@@ -1,0 +1,7 @@
+/.env
+/local/
+/backend/vendor/
+/backend/var/
+
+/app/app.crx
+/app/app.pem

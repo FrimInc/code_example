@@ -1,0 +1,11 @@
+{
+  "manifest_version": 2,
+  "name": "Picha Poster",
+  "description": "Сохранялка-отправлялка смешных картинок",
+  "version": "1.0.1",
+  "icons": {"128": "icon_128.png"},
+  "background": {
+    "scripts": ["script.js"]
+  },
+  "permissions": ["contextMenus"]
+}
